@@ -122,6 +122,23 @@ docker compose run --rm --no-deps bot node dist/scripts/healthCheck.js
 docker compose up -d --build
 ```
 
+This starts **`bot`**, **`mongo`**, and **`dashboard`** (web UI on [http://127.0.0.1:3847](http://127.0.0.1:3847)). The dashboard reads MongoDB collection `leaderboardtradertrackings` (requires leaderboard mode with profile persistence). To run **only** the trading bot without the UI:
+
+```bash
+docker compose up -d --build bot
+```
+
+**Dashboard (local / dev)**
+
+```bash
+npm run build
+npm run dashboard
+# or during development:
+npm run dashboard:dev
+```
+
+Environment (optional): `DASHBOARD_HOST` (default `127.0.0.1`), `DASHBOARD_PORT` (default `3847`). In Docker, `DASHBOARD_HOST` is set to `0.0.0.0` so the port mapping works.
+
 **5. Logs and lifecycle**
 
 ```bash

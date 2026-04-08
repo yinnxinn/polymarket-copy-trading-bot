@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Polymarket Bot — 排行榜跟踪看板</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --border: #2d3a4f;
+      --text: #e7ecf3;
+      --muted: #8b9cb3;
+      --accent: #3d8bfd;
+      --good: #3ecf8e;
+      --warn: #f0b429;
+      --bad: #f56565;
+      --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+    header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+    }
+    header h1 { margin: 0; font-size: 1.25rem; font-weight: 600; }
+    header p { margin: 0.35rem 0 0; color: var(--muted); font-size: 0.875rem; }
+    main { padding: 1.25rem 1.5rem 3rem; max-width: 1400px; margin: 0 auto; }
+    .grid { display: grid; gap: 1rem; }
+    @media (min-width: 900px) {
+      .kpi-grid { grid-template-columns: repeat(4, 1fr); }
+      .charts { grid-template-columns: 1fr 1fr; }
+    }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.15rem;
+    }
+    .card h2 { margin: 0 0 0.75rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 600; }
+    .kpi-val { font-size: 1.75rem; font-weight: 700; font-family: var(--mono); }
+    .kpi-sub { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+    .tier-elite { color: var(--good); }
+    .tier-high { color: #5eb3ff; }
+    .tier-watch { color: var(--warn); }
+    .tier-standard { color: var(--muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+    th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    tr:hover td { background: rgba(61, 139, 253, 0.06); }
+    tr.selected td { background: rgba(61, 139, 253, 0.12); }
+    .addr { font-family: var(--mono); font-size: 0.75rem; word-break: break-all; }
+    .tags { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+    .tag {
+      background: rgba(61, 139, 253, 0.15);
+      color: #9dc7ff;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+    }
+    .detail-panel { margin-top: 1.5rem; }
+    .detail-panel h3 { margin: 0 0 1rem; font-size: 1rem; }
+    .chart-wrap { position: relative; height: 280px; margin-top: 0.5rem; }
+    .empty { color: var(--muted); padding: 2rem; text-align: center; }
+    .err { color: var(--bad); font-size: 0.875rem; }
+    footer { padding: 1rem 1.5rem; color: var(--muted); font-size: 0.75rem; border-top: 1px solid var(--border); }
+    button.refresh {
+      margin-left: 0.5rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    button.refresh:hover { border-color: var(--accent); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Polymarket 跟单 · 排行榜跟踪看板</h1>
+    <p>数据来自 MongoDB <code>leaderboardtradertrackings</code>（需已开启排行榜画像持久化）。<button type="button" class="refresh" id="btn-refresh">刷新</button></p>
+  </header>
+  <main>
+    <p id="load-err" class="err" style="display:none;"></p>
+    <div class="grid kpi-grid" id="kpis" style="display:none;">
+      <div class="card"><h2>已跟踪地址</h2><div class="kpi-val" id="kpi-total">—</div><div class="kpi-sub">文档条数</div></div>
+      <div class="card"><h2>精英 tier (elite)</h2><div class="kpi-val tier-elite" id="kpi-elite">—</div><div class="kpi-sub">高胜率档</div></div>
+      <div class="card"><h2>平均综合分</h2><div class="kpi-val" id="kpi-score">—</div><div class="kpi-sub">latestMetrics</div></div>
+      <div class="card"><h2>平均胜率(样本)</h2><div class="kpi-val" id="kpi-wr">—</div><div class="kpi-sub">有胜率记录的均值</div></div>
+    </div>
+    <div class="grid charts" style="margin-top:1rem;">
+      <div class="card" id="chart-tier-wrap" style="display:none;">
+        <h2>Tracking tier 分布</h2>
+        <div class="chart-wrap"><canvas id="chart-tier"></canvas></div>
+      </div>
+      <div class="card" id="chart-tags-wrap" style="display:none;">
+        <h2>Top 标签</h2>
+        <div class="chart-wrap"><canvas id="chart-tags"></canvas></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:1rem;">
+      <h2>交易员列表 <span style="font-weight:400;color:var(--muted)">（点击行查看趋势）</span></h2>
+      <div id="table-empty" class="empty">暂无数据。请先以 <code>LEADERBOARD_ENABLED=true</code> 启动过 bot 并完成至少一次排行榜解析。</div>
+      <div style="overflow-x:auto;display:none;" id="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>地址</th>
+              <th>Tier</th>
+              <th>胜率</th>
+              <th>综合分</th>
+              <th>标签</th>
+              <th>最近更新</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card detail-panel" id="detail" style="display:none;">
+      <h3 id="detail-title">趋势</h3>
+      <div class="grid charts" style="grid-template-columns:1fr 1fr;">
+        <div><div class="chart-wrap"><canvas id="chart-score-ts"></canvas></div></div>
+        <div><div class="chart-wrap"><canvas id="chart-wr-ts"></canvas></div></div>
+      </div>
+    </div>
+  </main>
+  <footer>端口默认 3847 · 仅展示跟踪指标，不包含私钥与下单逻辑</footer>
+  <script>
+    let chartTier, chartTags, chartScoreTs, chartWrTs;
+    async function fetchJson(url) {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
+    }
+    function pct(x) { return x == null ? '—' : (x * 100).toFixed(1) + '%'; }
+    function tierClass(t) {
+      if (t === 'elite') return 'tier-elite';
+      if (t === 'high') return 'tier-high';
+      if (t === 'watch') return 'tier-watch';
+      return 'tier-standard';
+    }
+    async function load() {
+      const errEl = document.getElementById('load-err');
+      errEl.style.display = 'none';
+      try {
+        const sum = await fetchJson('/api/summary');
+        document.getElementById('kpis').style.display = 'grid';
+        document.getElementById('kpi-total').textContent = sum.total;
+        document.getElementById('kpi-elite').textContent = sum.tierCounts.elite ?? 0;
+        document.getElementById('kpi-score').textContent = sum.avgCompositeScore ?? '—';
+        document.getElementById('kpi-wr').textContent = sum.avgWinRate != null ? pct(sum.avgWinRate) : '—';
+
+        const tiers = sum.tierCounts || {};
+        const tierLabels = Object.keys(tiers);
+        const tierData = Object.values(tiers);
+        if (tierLabels.length) {
+          document.getElementById('chart-tier-wrap').style.display = 'block';
+          if (chartTier) chartTier.destroy();
+          chartTier = new Chart(document.getElementById('chart-tier'), {
+            type: 'doughnut',
+            data: {
+              labels: tierLabels,
+              datasets: [{ data: tierData, backgroundColor: ['#3ecf8e','#3d8bfd','#f0b429','#8b9cb3'] }]
+            },
+            options: { plugins: { legend: { labels: { color: '#8b9cb3' } } }, maintainAspectRatio: false }
+          });
+        }
+
+        const tags = sum.topTags || [];
+        if (tags.length) {
+          document.getElementById('chart-tags-wrap').style.display = 'block';
+          if (chartTags) chartTags.destroy();
+          chartTags = new Chart(document.getElementById('chart-tags'), {
+            type: 'bar',
+            data: {
+              labels: tags.map(t => t.tag),
+              datasets: [{ label: '人数', data: tags.map(t => t.count), backgroundColor: 'rgba(61,139,253,0.5)' }]
+            },
+            options: {
+              indexAxis: 'y',
+              scales: { x: { ticks: { color: '#8b9cb3' } }, y: { ticks: { color: '#8b9cb3', font: { size: 10 } } } },
+              plugins: { legend: { display: false } },
+              maintainAspectRatio: false
+            }
+          });
+        }
+
+        const { traders } = await fetchJson('/api/traders?limit=120');
+        const tb = document.getElementById('tbody');
+        tb.innerHTML = '';
+        if (!traders.length) {
+          document.getElementById('table-empty').style.display = 'block';
+          document.getElementById('table-wrap').style.display = 'none';
+        } else {
+          document.getElementById('table-empty').style.display = 'none';
+          document.getElementById('table-wrap').style.display = 'block';
+          for (const t of traders) {
+            const lm = t.latestMetrics || {};
+            const tr = document.createElement('tr');
+            tr.dataset.address = t.address;
+            tr.innerHTML = `
+              <td class="addr">${t.address}</td>
+              <td><span class="${tierClass(t.trackingTier)}">${t.trackingTier || '—'}</span></td>
+              <td>${pct(lm.winRate)}</td>
+              <td>${lm.compositeScore != null ? lm.compositeScore.toFixed(1) : '—'}</td>
+              <td><div class="tags">${(t.currentTags || []).map(x => `<span class="tag">${x}</span>`).join('')}</div></td>
+              <td>${t.lastRecordedAt ? new Date(t.lastRecordedAt).toLocaleString() : '—'}</td>
+            `;
+            tr.addEventListener('click', () => selectTrader(t.address, tr));
+            tb.appendChild(tr);
+          }
+        }
+      } catch (e) {
+        errEl.textContent = '加载失败: ' + e.message;
+        errEl.style.display = 'block';
+      }
+    }
+    async function selectTrader(address, rowEl) {
+      document.querySelectorAll('#tbody tr').forEach(r => r.classList.remove('selected'));
+      rowEl.classList.add('selected');
+      const detail = document.getElementById('detail');
+      detail.style.display = 'block';
+      document.getElementById('detail-title').textContent = '趋势 — ' + address.slice(0, 10) + '…';
+      try {
+        const doc = await fetchJson('/api/traders/' + address);
+        const snaps = (doc.snapshots || []).slice(-40);
+        if (!snaps.length) {
+          if (chartScoreTs) chartScoreTs.destroy();
+          if (chartWrTs) chartWrTs.destroy();
+          return;
+        }
+        const labels = snaps.map(s => new Date(s.recordedAt).toLocaleDateString());
+        const scores = snaps.map(s => s.compositeScore);
+        const wrs = snaps.map(s => (s.winRate == null ? null : s.winRate * 100));
+        if (chartScoreTs) chartScoreTs.destroy();
+        chartScoreTs = new Chart(document.getElementById('chart-score-ts'), {
+          type: 'line',
+          data: { labels, datasets: [{ label: '综合分', data: scores, borderColor: '#3d8bfd', tension: 0.2 }] },
+          options: {
+            scales: { x: { ticks: { color: '#8b9cb3', maxRotation: 45 } }, y: { ticks: { color: '#8b9cb3' } } },
+            plugins: { legend: { labels: { color: '#8b9cb3' } } },
+            maintainAspectRatio: false
+          }
+        });
+        if (chartWrTs) chartWrTs.destroy();
+        chartWrTs = new Chart(document.getElementById('chart-wr-ts'), {
+          type: 'line',
+          data: { labels, datasets: [{ label: '胜率 %', data: wrs, borderColor: '#3ecf8e', tension: 0.2 }] },
+          options: {
+            scales: { x: { ticks: { color: '#8b9cb3', maxRotation: 45 } }, y: { ticks: { color: '#8b9cb3' } } },
+            plugins: { legend: { labels: { color: '#8b9cb3' } } },
+            maintainAspectRatio: false
+          }
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    document.getElementById('btn-refresh').addEventListener('click', load);
+    load();
+  </script>
+</body>
+</html>
