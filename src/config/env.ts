@@ -9,6 +9,49 @@ const isValidEthereumAddress = (address: string): boolean => {
     return /^0x[a-fA-F0-9]{40}$/.test(address);
 };
 
+const UUID_LIKE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Normalize and validate Polygon wallet private key (32-byte hex).
+ */
+const parsePrivateKey = (raw: string): string => {
+    let s = raw.trim();
+    if (
+        (s.startsWith('"') && s.endsWith('"')) ||
+        (s.startsWith("'") && s.endsWith("'"))
+    ) {
+        s = s.slice(1, -1).trim();
+    }
+    if (UUID_LIKE.test(s)) {
+        console.error('\n❌ Invalid PRIVATE_KEY\n');
+        console.error(
+            'The value looks like a UUID, not an Ethereum private key.\n'
+        );
+        console.error(
+            'Use the 64-character hex key from your wallet (e.g. MetaMask → ⋮ → Account details → Show private key).\n'
+        );
+        console.error('Do not use API keys, MongoDB IDs, or random strings here.\n');
+        throw new Error(
+            'PRIVATE_KEY must be a 64-character hexadecimal wallet private key, not a UUID.'
+        );
+    }
+    let hex = s;
+    if (hex.startsWith('0x') || hex.startsWith('0X')) {
+        hex = hex.slice(2);
+    }
+    if (!/^[0-9a-fA-F]{64}$/.test(hex)) {
+        console.error('\n❌ Invalid PRIVATE_KEY format\n');
+        console.error(
+            'Expected: 64 hex characters, optionally prefixed with 0x (wallet export).\n'
+        );
+        throw new Error(
+            'PRIVATE_KEY must be exactly 64 hex digits (32 bytes), with or without 0x prefix.'
+        );
+    }
+    return '0x' + hex.toLowerCase();
+};
+
 /**
  * Validate required environment variables
  */
@@ -175,6 +218,8 @@ validateAddresses();
 validateNumericConfig();
 validateUrls();
 
+const PRIVATE_KEY = parsePrivateKey(process.env.PRIVATE_KEY as string);
+
 // Parse USER_ADDRESSES: supports both comma-separated string and JSON array
 const parseUserAddresses = (input: string): string[] => {
     const trimmed = input.trim();
@@ -325,7 +370,7 @@ const parseCopyStrategy = (): CopyStrategyConfig => {
 export const ENV = {
     USER_ADDRESSES: parseUserAddresses(process.env.USER_ADDRESSES as string),
     PROXY_WALLET: process.env.PROXY_WALLET as string,
-    PRIVATE_KEY: process.env.PRIVATE_KEY as string,
+    PRIVATE_KEY,
     CLOB_HTTP_URL: process.env.CLOB_HTTP_URL as string,
     CLOB_WS_URL: process.env.CLOB_WS_URL as string,
     FETCH_INTERVAL: parseInt(process.env.FETCH_INTERVAL || '1', 10),
