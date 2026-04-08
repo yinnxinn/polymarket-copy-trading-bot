@@ -115,9 +115,19 @@ async function main(): Promise<void> {
     });
 
     const staticDir = path.join(__dirname, 'static');
+    const indexHtml = path.join(staticDir, 'index.html');
     app.use(express.static(staticDir));
-    app.get('*', (_req, res) => {
-        res.sendFile(path.join(staticDir, 'index.html'));
+    // Express 5 / path-to-regexp v8 rejects app.get('*', ...); use middleware for SPA fallback.
+    app.use((req, res, next) => {
+        if (req.method !== 'GET' && req.method !== 'HEAD') {
+            next();
+            return;
+        }
+        if (req.path.startsWith('/api')) {
+            next();
+            return;
+        }
+        res.sendFile(indexHtml);
     });
 
     app.listen(PORT, HOST, () => {
