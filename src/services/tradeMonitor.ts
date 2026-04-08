@@ -246,6 +246,11 @@ const tradeMonitor = async () => {
         if (ENV.LEADERBOARD_REFRESH_MINUTES > 0) {
             Logger.info(`Leaderboard refresh every ${ENV.LEADERBOARD_REFRESH_MINUTES} minute(s)`);
         }
+        if (ENV.LEADERBOARD_ENRICH_PROFILES) {
+            Logger.info(
+                'Trader profiles: win rate from flat positions, HHI on activity sample, composite score for ordering'
+            );
+        }
     }
     Logger.separator();
 

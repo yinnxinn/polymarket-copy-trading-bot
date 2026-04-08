@@ -445,6 +445,33 @@ export const ENV = {
         200,
         Math.max(1, parseInt(process.env.LEADERBOARD_MAX_TOTAL_TRADERS || '25', 10))
     ),
+    /** Fetch positions + activity to compute win rate / concentration / composite score. Default on. */
+    LEADERBOARD_ENRICH_PROFILES: process.env.LEADERBOARD_ENRICH_PROFILES !== 'false',
+    /** After enrichment, order copy targets by composite score instead of raw API order. Default on. */
+    LEADERBOARD_USE_PROFILE_SCORE: process.env.LEADERBOARD_USE_PROFILE_SCORE !== 'false',
+    LEADERBOARD_PROFILE_CONCURRENCY: Math.min(
+        8,
+        Math.max(1, parseInt(process.env.LEADERBOARD_PROFILE_CONCURRENCY || '4', 10))
+    ),
+    LEADERBOARD_ACTIVITY_SAMPLE_LIMIT: Math.min(
+        500,
+        Math.max(20, parseInt(process.env.LEADERBOARD_ACTIVITY_SAMPLE_LIMIT || '150', 10))
+    ),
+    /** If set (0–1), drop traders with computed win rate below this (unknown win rate kept). */
+    LEADERBOARD_MIN_WIN_RATE: (() => {
+        if (!LEADERBOARD_ENABLED) {
+            return null as number | null;
+        }
+        const s = process.env.LEADERBOARD_MIN_WIN_RATE?.trim();
+        if (!s) {
+            return null as number | null;
+        }
+        const v = parseFloat(s);
+        if (isNaN(v) || v < 0 || v > 1) {
+            throw new Error('LEADERBOARD_MIN_WIN_RATE must be between 0 and 1');
+        }
+        return v;
+    })(),
     USER_ADDRESSES: USER_ADDRESSES_PARSED,
     PROXY_WALLET: process.env.PROXY_WALLET as string,
     PRIVATE_KEY,
