@@ -6,7 +6,8 @@ WORKDIR /app
 ENV CI=true
 
 COPY package.json package-lock.json ./
-RUN npm ci
+# postinstall only prints setup hints; src/ is not copied yet
+RUN npm ci --ignore-scripts
 
 COPY tsconfig.json ./
 COPY src ./src
@@ -21,7 +22,7 @@ ENV NODE_ENV=production
 ENV CI=true
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
 
