@@ -83,6 +83,68 @@ pm2 logs polymarket-bot
 pm2 monit
 ```
 
+### Docker Compose
+
+Use this when you prefer containers instead of installing Node.js on the server. The stack includes the **bot** and a **local MongoDB 7** service with a persistent volume. You still configure trading secrets exactly like [GETTING_STARTED.md](./GETTING_STARTED.md) (wallet, RPC, Polymarket endpoints, traders to copy).
+
+**Prerequisites:** [Docker](https://docs.docker.com/get-docker/) and Docker Compose v2 (`docker compose`).
+
+**1. Configure environment**
+
+```bash
+cp .env.example .env
+# Edit .env: USER_ADDRESSES, PROXY_WALLET, PRIVATE_KEY (64 hex chars), RPC_URL,
+# CLOB_HTTP_URL, CLOB_WS_URL, USDC_CONTRACT_ADDRESS
+```
+
+**2. MongoDB — choose one**
+
+| Mode | What to do |
+|------|------------|
+| **Bundled MongoDB** (default in this compose file) | Do not set `MONGO_URI` in `.env`, or use the default `mongodb://mongo:27017/polymarket_copytrading` shown in `docker-compose.yml`. Data is stored in the `mongo_data` volume. |
+| **MongoDB Atlas** | Set `MONGO_URI` in `.env` to your Atlas connection string. Start **only** the bot so the local `mongo` container is not used: `docker compose up -d --build --no-deps bot` |
+
+**3. (Recommended) Health check before going live**
+
+The image runs compiled JavaScript only (`dist/`). Run the same check as `npm run health-check` with:
+
+```bash
+docker compose build bot
+# With bundled MongoDB (starts mongo + one-off bot):
+docker compose run --rm bot node dist/scripts/healthCheck.js
+# With MongoDB Atlas only (no local mongo container):
+docker compose run --rm --no-deps bot node dist/scripts/healthCheck.js
+```
+
+**4. Start services**
+
+```bash
+docker compose up -d --build
+```
+
+**5. Logs and lifecycle**
+
+```bash
+docker compose logs -f bot
+docker compose stop
+docker compose down          # removes containers; use `down -v` to also drop Mongo volume
+```
+
+**Notes**
+
+- **Scripts** such as `npm run check-stats` use `ts-node` and are not installed in the production image. For one-off maintenance, run Node on the host with a dev install, or extend the Dockerfile with a dev stage.
+- **Resources:** align with [Performance Tuning](#performance-tuning) in this file (similar CPU/RAM expectations).
+- **Security:** restrict `.env` permissions (`chmod 600 .env` on Linux); do not commit `.env`.
+
+Equivalent **npm** shortcuts (from project root):
+
+```bash
+npm run docker:up
+npm run docker:health          # or npm run docker:health:atlas if using Atlas only
+npm run docker:logs
+npm run docker:down
+```
+
 ## Environment Configuration
 
 ### Required Variables

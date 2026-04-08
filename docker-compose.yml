@@ -1,8 +1,22 @@
-# Local stack: copy .env.example to .env, fill secrets, then:
-#   docker compose up -d --build
+# Polymarket Copy Trading Bot — Docker Compose
 #
-# MongoDB Atlas (no local mongo): point MONGO_URI in .env to Atlas, then:
-#   docker compose up -d --build --no-deps bot
+# Prerequisites (same as docs/GETTING_STARTED.md):
+#   - .env with USER_ADDRESSES, PROXY_WALLET, PRIVATE_KEY (64 hex), RPC_URL,
+#     CLOB_*, USDC_CONTRACT_ADDRESS, and either bundled Mongo or Atlas MONGO_URI
+#   - Polygon wallet funded with USDC + POL/MATIC for gas
+#
+# Typical workflow:
+#   1. cp .env.example .env   # then edit secrets (never commit .env)
+#   2. docker compose run --rm bot node dist/scripts/healthCheck.js   # optional: verify config
+#   3. docker compose up -d --build
+#   4. docker compose logs -f bot
+#
+# MongoDB:
+#   • Bundled MongoDB (this file): leave MONGO_URI unset in .env, or rely on default below.
+#   • MongoDB Atlas only: set MONGO_URI in .env to your Atlas URI, then start bot without local mongo:
+#       docker compose up -d --build --no-deps bot
+
+name: polymarket-copy-trading-bot
 
 services:
   mongo:
@@ -18,12 +32,20 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - bot-net
 
   bot:
     build:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    stop_grace_period: 45s
     depends_on:
       mongo:
         condition: service_healthy
@@ -31,8 +53,19 @@ services:
       - .env
     environment:
       NODE_ENV: production
-      # Host `.env` is used for compose variable substitution; unset MONGO_URI there to use bundled MongoDB
+      # Interpolation: host .env supplies MONGO_URI; if unset, use bundled Mongo service
       MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017/polymarket_copytrading}
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    networks:
+      - bot-net
+
+networks:
+  bot-net:
+    name: polymarket-bot-net
 
 volumes:
   mongo_data:
