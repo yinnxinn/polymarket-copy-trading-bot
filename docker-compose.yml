@@ -1,0 +1,38 @@
+# Local stack: copy .env.example to .env, fill secrets, then:
+#   docker compose up -d --build
+#
+# MongoDB Atlas (no local mongo): point MONGO_URI in .env to Atlas, then:
+#   docker compose up -d --build --no-deps bot
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "127.0.0.1:27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      # Host `.env` is used for compose variable substitution; unset MONGO_URI there to use bundled MongoDB
+      MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017/polymarket_copytrading}
+
+volumes:
+  mongo_data:
