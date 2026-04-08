@@ -26,6 +26,9 @@ RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
 
+# Allow runtime append to changeme.md (leaderboard snapshots)
+RUN touch /app/changeme.md && chown -R node:node /app
+
 USER node
 
 CMD ["node", "dist/index.js"]

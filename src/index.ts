@@ -1,12 +1,13 @@
 import connectDB, { closeDB } from './config/db';
 import { ENV } from './config/env';
+import { resolveTraderAddressesAtStartup } from './config/resolveTraders';
+import { getUserAddresses } from './config/traderAddresses';
 import createClobClient from './utils/createClobClient';
 import tradeExecutor, { stopTradeExecutor } from './services/tradeExecutor';
 import tradeMonitor, { stopTradeMonitor } from './services/tradeMonitor';
 import Logger from './utils/logger';
 import { performHealthCheck, logHealthCheck } from './utils/healthCheck';
 
-const USER_ADDRESSES = ENV.USER_ADDRESSES;
 const PROXY_WALLET = ENV.PROXY_WALLET;
 
 // Graceful shutdown handler
@@ -75,7 +76,8 @@ export const main = async () => {
         console.log(`   Run health check: ${colors.cyan}npm run health-check${colors.reset}\n`);
         
         await connectDB();
-        Logger.startup(USER_ADDRESSES, PROXY_WALLET);
+        await resolveTraderAddressesAtStartup();
+        Logger.startup(getUserAddresses(), PROXY_WALLET);
 
         // Perform initial health check
         Logger.info('Performing initial health check...');

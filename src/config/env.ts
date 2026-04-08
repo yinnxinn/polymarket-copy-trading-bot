@@ -52,12 +52,13 @@ const parsePrivateKey = (raw: string): string => {
     return '0x' + hex.toLowerCase();
 };
 
+const LEADERBOARD_ENABLED = process.env.LEADERBOARD_ENABLED === 'true';
+
 /**
  * Validate required environment variables
  */
 const validateRequiredEnv = (): void => {
     const required = [
-        'USER_ADDRESSES',
         'PROXY_WALLET',
         'PRIVATE_KEY',
         'CLOB_HTTP_URL',
@@ -66,6 +67,10 @@ const validateRequiredEnv = (): void => {
         'RPC_URL',
         'USDC_CONTRACT_ADDRESS',
     ];
+
+    if (!LEADERBOARD_ENABLED) {
+        required.push('USER_ADDRESSES');
+    }
 
     const missing: string[] = [];
     for (const key of required) {
@@ -220,6 +225,45 @@ validateUrls();
 
 const PRIVATE_KEY = parsePrivateKey(process.env.PRIVATE_KEY as string);
 
+const LEADERBOARD_CATEGORIES = new Set([
+    'OVERALL',
+    'POLITICS',
+    'SPORTS',
+    'CRYPTO',
+    'CULTURE',
+    'MENTIONS',
+    'WEATHER',
+    'ECONOMICS',
+    'TECH',
+    'FINANCE',
+]);
+
+const LEADERBOARD_PERIODS = new Set(['DAY', 'WEEK', 'MONTH', 'ALL']);
+
+const validateLeaderboardEnv = (): void => {
+    if (!LEADERBOARD_ENABLED) {
+        return;
+    }
+    const cat = (process.env.LEADERBOARD_CATEGORY || 'OVERALL').toUpperCase();
+    if (!LEADERBOARD_CATEGORIES.has(cat)) {
+        throw new Error(
+            `Invalid LEADERBOARD_CATEGORY: ${cat}. Must be one of: ${[...LEADERBOARD_CATEGORIES].join(', ')}`
+        );
+    }
+    const period = (process.env.LEADERBOARD_TIME_PERIOD || 'MONTH').toUpperCase();
+    if (!LEADERBOARD_PERIODS.has(period)) {
+        throw new Error(
+            `Invalid LEADERBOARD_TIME_PERIOD: ${period}. Must be DAY, WEEK, MONTH, or ALL`
+        );
+    }
+    const order = (process.env.LEADERBOARD_ORDER_BY || 'PNL').toUpperCase();
+    if (order !== 'PNL' && order !== 'VOL') {
+        throw new Error('LEADERBOARD_ORDER_BY must be PNL or VOL');
+    }
+};
+
+validateLeaderboardEnv();
+
 // Parse USER_ADDRESSES: supports both comma-separated string and JSON array
 const parseUserAddresses = (input: string): string[] => {
     const trimmed = input.trim();
@@ -367,8 +411,41 @@ const parseCopyStrategy = (): CopyStrategyConfig => {
     return config;
 };
 
+const rawUserAddresses = (process.env.USER_ADDRESSES || '').trim();
+const USER_ADDRESSES_PARSED =
+    rawUserAddresses.length === 0 ? [] : parseUserAddresses(rawUserAddresses);
+
+if (!LEADERBOARD_ENABLED && USER_ADDRESSES_PARSED.length === 0) {
+    throw new Error('USER_ADDRESSES is empty; set addresses or enable LEADERBOARD_ENABLED=true');
+}
+
 export const ENV = {
-    USER_ADDRESSES: parseUserAddresses(process.env.USER_ADDRESSES as string),
+    LEADERBOARD_ENABLED,
+    LEADERBOARD_CATEGORY: (process.env.LEADERBOARD_CATEGORY || 'OVERALL').toUpperCase(),
+    LEADERBOARD_TIME_PERIOD: (process.env.LEADERBOARD_TIME_PERIOD || 'MONTH').toUpperCase(),
+    LEADERBOARD_ORDER_BY: (process.env.LEADERBOARD_ORDER_BY || 'PNL').toUpperCase() as
+        | 'PNL'
+        | 'VOL',
+    LEADERBOARD_LIMIT: Math.min(
+        50,
+        Math.max(
+            1,
+            parseInt(process.env.LEADERBOARD_TOP_N || process.env.LEADERBOARD_LIMIT || '10', 10)
+        )
+    ),
+    LEADERBOARD_OFFSET: Math.min(
+        1000,
+        Math.max(0, parseInt(process.env.LEADERBOARD_OFFSET || '0', 10))
+    ),
+    LEADERBOARD_REFRESH_MINUTES: Math.max(
+        0,
+        parseInt(process.env.LEADERBOARD_REFRESH_MINUTES || '0', 10)
+    ),
+    LEADERBOARD_MAX_TOTAL_TRADERS: Math.min(
+        200,
+        Math.max(1, parseInt(process.env.LEADERBOARD_MAX_TOTAL_TRADERS || '25', 10))
+    ),
+    USER_ADDRESSES: USER_ADDRESSES_PARSED,
     PROXY_WALLET: process.env.PROXY_WALLET as string,
     PRIVATE_KEY,
     CLOB_HTTP_URL: process.env.CLOB_HTTP_URL as string,

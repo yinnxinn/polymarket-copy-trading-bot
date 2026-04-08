@@ -1,31 +1,34 @@
 import { ENV } from '../config/env';
+import { refreshLeaderboardTraders } from '../config/resolveTraders';
+import { getUserAddresses } from '../config/traderAddresses';
 import { getUserActivityModel, getUserPositionModel } from '../models/userHistory';
 import fetchData from '../utils/fetchData';
 import Logger from '../utils/logger';
 
-const USER_ADDRESSES = ENV.USER_ADDRESSES;
 const TOO_OLD_TIMESTAMP = ENV.TOO_OLD_TIMESTAMP;
 const FETCH_INTERVAL = ENV.FETCH_INTERVAL;
 
-if (!USER_ADDRESSES || USER_ADDRESSES.length === 0) {
-    throw new Error('USER_ADDRESSES is not defined or empty');
-}
+type UserModelRow = {
+    address: string;
+    UserActivity: ReturnType<typeof getUserActivityModel>;
+    UserPosition: ReturnType<typeof getUserPositionModel>;
+};
 
-// Create activity and position models for each user
-const userModels = USER_ADDRESSES.map((address) => ({
-    address,
-    UserActivity: getUserActivityModel(address),
-    UserPosition: getUserPositionModel(address),
-}));
+const buildUserModels = (addresses: string[]): UserModelRow[] =>
+    addresses.map((address) => ({
+        address,
+        UserActivity: getUserActivityModel(address),
+        UserPosition: getUserPositionModel(address),
+    }));
 
-const init = async () => {
+const init = async (userModels: UserModelRow[], addresses: string[]) => {
     const counts: number[] = [];
     for (const { address, UserActivity } of userModels) {
         const count = await UserActivity.countDocuments();
         counts.push(count);
     }
     Logger.clearLine();
-    Logger.dbConnection(USER_ADDRESSES, counts);
+    Logger.dbConnection(addresses, counts);
 
     // Show your own positions first
     try {
@@ -102,10 +105,10 @@ const init = async () => {
         positionDetails.push(topPositions);
     }
     Logger.clearLine();
-    Logger.tradersPositions(USER_ADDRESSES, positionCounts, positionDetails, profitabilities);
+    Logger.tradersPositions(addresses, positionCounts, positionDetails, profitabilities);
 };
 
-const fetchTradeData = async () => {
+const fetchTradeData = async (userModels: UserModelRow[]) => {
     for (const { address, UserActivity, UserPosition } of userModels) {
         try {
             // Fetch trade activities from Polymarket API
@@ -225,8 +228,25 @@ export const stopTradeMonitor = () => {
 };
 
 const tradeMonitor = async () => {
-    await init();
-    Logger.success(`Monitoring ${USER_ADDRESSES.length} trader(s) every ${FETCH_INTERVAL}s`);
+    const addresses = getUserAddresses();
+    if (!addresses.length) {
+        throw new Error('No trader addresses to monitor');
+    }
+
+    let userModels = buildUserModels(addresses);
+    await init(userModels, addresses);
+    Logger.success(`Monitoring ${addresses.length} trader(s) every ${FETCH_INTERVAL}s`);
+    if (ENV.LEADERBOARD_ENABLED) {
+        Logger.info(
+            `Leaderboard mode: category=${ENV.LEADERBOARD_CATEGORY} period=${ENV.LEADERBOARD_TIME_PERIOD} order=${ENV.LEADERBOARD_ORDER_BY} limit=${ENV.LEADERBOARD_LIMIT}`
+        );
+        if (ENV.USER_ADDRESSES.length > 0) {
+            Logger.info(`${ENV.USER_ADDRESSES.length} address(es) pinned via USER_ADDRESSES (merged with leaderboard)`);
+        }
+        if (ENV.LEADERBOARD_REFRESH_MINUTES > 0) {
+            Logger.info(`Leaderboard refresh every ${ENV.LEADERBOARD_REFRESH_MINUTES} minute(s)`);
+        }
+    }
     Logger.separator();
 
     // On first run, mark all existing historical trades as already processed
@@ -248,8 +268,45 @@ const tradeMonitor = async () => {
         Logger.separator();
     }
 
+    let lastLbRefresh = Date.now();
+    let trackedSet = new Set(addresses.map((a) => a.toLowerCase()));
+
     while (isRunning) {
-        await fetchTradeData();
+        if (
+            ENV.LEADERBOARD_ENABLED &&
+            ENV.LEADERBOARD_REFRESH_MINUTES > 0 &&
+            Date.now() - lastLbRefresh >= ENV.LEADERBOARD_REFRESH_MINUTES * 60 * 1000
+        ) {
+            try {
+                await refreshLeaderboardTraders();
+                const nextAddrs = getUserAddresses();
+                userModels = buildUserModels(nextAddrs);
+                for (const addr of nextAddrs) {
+                    const low = addr.toLowerCase();
+                    if (!trackedSet.has(low)) {
+                        trackedSet.add(low);
+                        const UserActivity = getUserActivityModel(addr);
+                        const count = await UserActivity.updateMany(
+                            { bot: false },
+                            { $set: { bot: true, botExcutedTime: 999 } }
+                        );
+                        if (count.modifiedCount > 0) {
+                            Logger.info(
+                                `New leaderboard trader ${addr.slice(0, 6)}...${addr.slice(-4)}: marked ${count.modifiedCount} historical trades as processed`
+                            );
+                        }
+                    }
+                }
+                lastLbRefresh = Date.now();
+                Logger.success(
+                    `Leaderboard refreshed — now tracking ${getUserAddresses().length} trader(s)`
+                );
+            } catch (e) {
+                Logger.error(`Leaderboard refresh failed: ${e}`);
+            }
+        }
+
+        await fetchTradeData(userModels);
         if (!isRunning) break;
         await new Promise((resolve) => setTimeout(resolve, FETCH_INTERVAL * 1000));
     }

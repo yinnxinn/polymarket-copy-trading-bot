@@ -1,24 +1,18 @@
 import { ClobClient } from '@polymarket/clob-client';
 import { UserActivityInterface, UserPositionInterface } from '../interfaces/User';
 import { ENV } from '../config/env';
+import { getUserAddresses } from '../config/traderAddresses';
 import { getUserActivityModel } from '../models/userHistory';
 import fetchData from '../utils/fetchData';
 import getMyBalance from '../utils/getMyBalance';
 import postOrder from '../utils/postOrder';
 import Logger from '../utils/logger';
 
-const USER_ADDRESSES = ENV.USER_ADDRESSES;
 const RETRY_LIMIT = ENV.RETRY_LIMIT;
 const PROXY_WALLET = ENV.PROXY_WALLET;
 const TRADE_AGGREGATION_ENABLED = ENV.TRADE_AGGREGATION_ENABLED;
 const TRADE_AGGREGATION_WINDOW_SECONDS = ENV.TRADE_AGGREGATION_WINDOW_SECONDS;
 const TRADE_AGGREGATION_MIN_TOTAL_USD = 1.0; // Polymarket minimum
-
-// Create activity models for each user
-const userActivityModels = USER_ADDRESSES.map((address) => ({
-    address,
-    model: getUserActivityModel(address),
-}));
 
 interface TradeWithUser extends UserActivityInterface {
     userAddress: string;
@@ -44,7 +38,8 @@ const tradeAggregationBuffer: Map<string, AggregatedTrade> = new Map();
 const readTempTrades = async (): Promise<TradeWithUser[]> => {
     const allTrades: TradeWithUser[] = [];
 
-    for (const { address, model } of userActivityModels) {
+    for (const address of getUserAddresses()) {
+        const model = getUserActivityModel(address);
         // Only get trades that haven't been processed yet (bot: false AND botExcutedTime: 0)
         // This prevents processing the same trade multiple times
         const trades = await model
@@ -275,7 +270,7 @@ export const stopTradeExecutor = () => {
 };
 
 const tradeExecutor = async (clobClient: ClobClient) => {
-    Logger.success(`Trade executor ready for ${USER_ADDRESSES.length} trader(s)`);
+    Logger.success(`Trade executor ready for ${getUserAddresses().length} trader(s)`);
     if (TRADE_AGGREGATION_ENABLED) {
         Logger.info(
             `Trade aggregation enabled: ${TRADE_AGGREGATION_WINDOW_SECONDS}s window, $${TRADE_AGGREGATION_MIN_TOTAL_USD} minimum`
@@ -329,11 +324,11 @@ const tradeExecutor = async (clobClient: ClobClient) => {
                     const bufferedCount = tradeAggregationBuffer.size;
                     if (bufferedCount > 0) {
                         Logger.waiting(
-                            USER_ADDRESSES.length,
+                            getUserAddresses().length,
                             `${bufferedCount} trade group(s) pending`
                         );
                     } else {
-                        Logger.waiting(USER_ADDRESSES.length);
+                        Logger.waiting(getUserAddresses().length);
                     }
                     lastCheck = Date.now();
                 }
@@ -350,7 +345,7 @@ const tradeExecutor = async (clobClient: ClobClient) => {
             } else {
                 // Update waiting message every 300ms for smooth animation
                 if (Date.now() - lastCheck > 300) {
-                    Logger.waiting(USER_ADDRESSES.length);
+                    Logger.waiting(getUserAddresses().length);
                     lastCheck = Date.now();
                 }
             }

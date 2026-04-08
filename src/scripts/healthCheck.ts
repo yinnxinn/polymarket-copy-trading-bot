@@ -2,6 +2,8 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 import connectDB, { closeDB } from '../config/db';
+import { resolveTraderAddressesAtStartup } from '../config/resolveTraders';
+import { getUserAddresses } from '../config/traderAddresses';
 import { performHealthCheck, logHealthCheck } from '../utils/healthCheck';
 import { ENV } from '../config/env';
 
@@ -78,10 +80,14 @@ function printRecommendations(result: any) {
 }
 
 function printConfiguration() {
+    const traders = getUserAddresses();
     console.log(`${colors.cyan}📊 Configuration Summary:${colors.reset}\n`);
     console.log(`   Trading Wallet: ${ENV.PROXY_WALLET.slice(0, 6)}...${ENV.PROXY_WALLET.slice(-4)}`);
-    console.log(`   Tracking ${ENV.USER_ADDRESSES.length} trader(s):`);
-    ENV.USER_ADDRESSES.forEach((addr, idx) => {
+    if (ENV.LEADERBOARD_ENABLED) {
+        console.log(`   Trader source: Polymarket leaderboard (${ENV.LEADERBOARD_CATEGORY} / ${ENV.LEADERBOARD_TIME_PERIOD} / ${ENV.LEADERBOARD_ORDER_BY})`);
+    }
+    console.log(`   Tracking ${traders.length} trader(s):`);
+    traders.forEach((addr, idx) => {
         console.log(`      ${idx + 1}. ${addr.slice(0, 6)}...${addr.slice(-4)}`);
     });
     console.log(`   Check Interval: ${ENV.FETCH_INTERVAL}s`);
@@ -95,6 +101,7 @@ const main = async () => {
         console.log(`${colors.yellow}⏳ Running diagnostic checks...${colors.reset}\n`);
 
         await connectDB();
+        await resolveTraderAddressesAtStartup();
         const result = await performHealthCheck();
 
         logHealthCheck(result);
