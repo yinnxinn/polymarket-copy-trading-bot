@@ -49,6 +49,24 @@ When `LEADERBOARD_USE_PROFILE_SCORE` is not `false`, **copy order** follows **co
 | `LEADERBOARD_PROFILE_CONCURRENCY` | Parallel fetches per batch (default `4`). |
 | `LEADERBOARD_ACTIVITY_SAMPLE_LIMIT` | Trades pulled for HHI / activity (default `150`, max `500`). |
 | `LEADERBOARD_MIN_WIN_RATE` | e.g. `0.52` — drop traders with **known** win rate below 52%; `n/a` rows are kept. |
+| `LEADERBOARD_PERSIST_TRACKING` | `false` to skip MongoDB persistence (default: on). |
+| `LEADERBOARD_TAG_WIN_RATE_HIGH` | Win-rate floor for tag `winrate_high` (default `0.55`). |
+| `LEADERBOARD_TAG_WIN_RATE_ELITE` | Floor for `winrate_elite` (default `0.62`; must be **greater than** HIGH). |
+| `LEADERBOARD_TRACKING_SNAPSHOT_CAP` | Max snapshots per wallet (default `50`, max `200`). |
+
+## MongoDB: tags & continuous tracking
+
+When leaderboard mode runs **with** `LEADERBOARD_ENRICH_PROFILES` (default), each startup / refresh (if configured) **upserts** one document per leaderboard wallet into collection **`leaderboardtradertrackings`**:
+
+- **`currentTags`**: string tags derived from win rate, HHI, rank, verified badge, composite score, activity (e.g. `winrate_elite`, `winrate_high`, `style_diversified`, `lb_rank_top5`, `sample_low`, `winrate_unknown`).
+- **`trackingTier`**: `elite` | `high` | `standard` | `watch` — coarse bucket for “who to prioritize watching”.
+- **`snapshots`**: capped time series of the same metrics + tags each run (for trend / drift).
+
+List recent rows from the shell:
+
+```bash
+npm run leaderboard-tracking
+```
 
 ## `changeme.md`
 

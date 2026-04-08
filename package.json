@@ -41,6 +41,7 @@
         "docker:logs": "docker compose logs -f bot",
         "docker:health": "docker compose run --rm bot node dist/scripts/healthCheck.js",
         "docker:health:atlas": "docker compose run --rm --no-deps bot node dist/scripts/healthCheck.js",
+        "leaderboard-tracking": "ts-node src/scripts/listLeaderboardTracking.ts",
         "lint": "eslint .",
         "lint:fix": "eslint --fix .",
         "format": "prettier --write ."

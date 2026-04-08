@@ -7,6 +7,7 @@ import {
 } from '../services/traderProfile';
 import { setResolvedUserAddresses } from './traderAddresses';
 import { appendLeaderboardSnapshot } from '../utils/changemeLog';
+import { persistEnrichedLeaderboardProfiles } from '../services/persistLeaderboardProfiles';
 
 function mergePinsWithOrderedWallets(pins: string[], orderedWallets: string[]): string[] {
     const pinSet = new Set(pins.map((a) => a.toLowerCase()));
@@ -30,6 +31,7 @@ async function buildOrderedWalletsAndLog(source: 'startup' | 'refresh'): Promise
         enriched = sortByProfileScore(enriched);
     }
     appendLeaderboardSnapshot({ source, entries, enriched });
+    await persistEnrichedLeaderboardProfiles(enriched, source);
     return enriched.map((e) => e.proxyWallet);
 }
 

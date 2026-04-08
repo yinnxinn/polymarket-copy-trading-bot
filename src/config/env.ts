@@ -260,6 +260,15 @@ const validateLeaderboardEnv = (): void => {
     if (order !== 'PNL' && order !== 'VOL') {
         throw new Error('LEADERBOARD_ORDER_BY must be PNL or VOL');
     }
+    if (LEADERBOARD_ENABLED) {
+        const hi = parseFloat(process.env.LEADERBOARD_TAG_WIN_RATE_HIGH || '0.55');
+        const el = parseFloat(process.env.LEADERBOARD_TAG_WIN_RATE_ELITE || '0.62');
+        if (isNaN(hi) || isNaN(el) || hi <= 0 || el >= 1 || hi >= el) {
+            throw new Error(
+                'LEADERBOARD_TAG_WIN_RATE_HIGH / ELITE must satisfy 0 < high < elite < 1'
+            );
+        }
+    }
 };
 
 validateLeaderboardEnv();
@@ -472,6 +481,23 @@ export const ENV = {
         }
         return v;
     })(),
+    /** Save tags + snapshots to MongoDB collection `leaderboardtradertrackings` on each leaderboard resolve. */
+    LEADERBOARD_PERSIST_TRACKING: process.env.LEADERBOARD_PERSIST_TRACKING !== 'false',
+    /** Tag `winrate_high` when win rate >= this (and sample sufficient). */
+    LEADERBOARD_TAG_WIN_RATE_HIGH: Math.min(
+        0.99,
+        Math.max(0.01, parseFloat(process.env.LEADERBOARD_TAG_WIN_RATE_HIGH || '0.55'))
+    ),
+    /** Tag `winrate_elite` when win rate >= this. */
+    LEADERBOARD_TAG_WIN_RATE_ELITE: Math.min(
+        0.99,
+        Math.max(0.01, parseFloat(process.env.LEADERBOARD_TAG_WIN_RATE_ELITE || '0.62'))
+    ),
+    /** Max history entries per wallet (older snapshots dropped). */
+    LEADERBOARD_TRACKING_SNAPSHOT_CAP: Math.min(
+        200,
+        Math.max(5, parseInt(process.env.LEADERBOARD_TRACKING_SNAPSHOT_CAP || '50', 10))
+    ),
     USER_ADDRESSES: USER_ADDRESSES_PARSED,
     PROXY_WALLET: process.env.PROXY_WALLET as string,
     PRIVATE_KEY,
