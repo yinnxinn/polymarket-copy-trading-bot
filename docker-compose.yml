@@ -55,11 +55,15 @@ services:
       NODE_ENV: production
       # Interpolation: host .env supplies MONGO_URI; if unset, use bundled Mongo service
       MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017/polymarket_copytrading}
-      # Dashboard data comes from leaderboard snapshots persisted by the bot.
+      # Leaderboard → high win-rate filter → copy trading pipeline
       LEADERBOARD_ENABLED: ${LEADERBOARD_ENABLED:-true}
       LEADERBOARD_ENRICH_PROFILES: ${LEADERBOARD_ENRICH_PROFILES:-true}
       LEADERBOARD_USE_PROFILE_SCORE: ${LEADERBOARD_USE_PROFILE_SCORE:-true}
       LEADERBOARD_PERSIST_TRACKING: ${LEADERBOARD_PERSIST_TRACKING:-true}
+      LEADERBOARD_MIN_WIN_RATE: ${LEADERBOARD_MIN_WIN_RATE:-0.55}
+      LEADERBOARD_REFRESH_MINUTES: ${LEADERBOARD_REFRESH_MINUTES:-30}
+      LEADERBOARD_TOP_N: ${LEADERBOARD_TOP_N:-20}
+      PREVIEW_MODE: ${PREVIEW_MODE:-false}
     healthcheck:
       test:
         [

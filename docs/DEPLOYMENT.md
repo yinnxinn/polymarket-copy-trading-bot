@@ -122,7 +122,7 @@ docker compose run --rm --no-deps bot node dist/scripts/healthCheck.js
 docker compose up -d --build
 ```
 
-This starts **`bot`**, **`mongo`**, and **`dashboard`** (web UI on [http://127.0.0.1:3847](http://127.0.0.1:3847)). The dashboard reads MongoDB collection `leaderboardtradertrackings` (requires leaderboard mode with profile persistence). To run **only** the trading bot without the UI:
+This starts **`bot`**, **`mongo`**, and **`dashboard`** (web UI on [http://127.0.0.1:3847](http://127.0.0.1:3847)). In Docker Compose, the **bot defaults to `LEADERBOARD_ENABLED=true` and `LEADERBOARD_PERSIST_TRACKING=true`** unless you explicitly override them in `.env`, so the dashboard has data to read from MongoDB collection `leaderboardtradertrackings`. The dashboard also waits for the bot to persist at least one leaderboard snapshot before it starts. To run **only** the trading bot without the UI:
 
 ```bash
 docker compose up -d --build bot

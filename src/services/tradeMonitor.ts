@@ -5,7 +5,7 @@ import { getUserActivityModel, getUserPositionModel } from '../models/userHistor
 import fetchData from '../utils/fetchData';
 import Logger from '../utils/logger';
 
-const TOO_OLD_TIMESTAMP = ENV.TOO_OLD_TIMESTAMP;
+const TOO_OLD_HOURS = ENV.TOO_OLD_TIMESTAMP;
 const FETCH_INTERVAL = ENV.FETCH_INTERVAL;
 
 type UserModelRow = {
@@ -120,9 +120,16 @@ const fetchTradeData = async (userModels: UserModelRow[]) => {
             }
 
             // Process each activity
+            const cutoffMs = Date.now() - TOO_OLD_HOURS * 3600 * 1000;
+
             for (const activity of activities) {
-                // Skip if too old
-                if (activity.timestamp < TOO_OLD_TIMESTAMP) {
+                const activityMs =
+                    typeof activity.timestamp === 'string'
+                        ? new Date(activity.timestamp).getTime()
+                        : activity.timestamp > 1e12
+                          ? activity.timestamp
+                          : activity.timestamp * 1000;
+                if (activityMs < cutoffMs) {
                     continue;
                 }
 

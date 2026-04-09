@@ -523,4 +523,5 @@ export const ENV = {
     MONGO_URI: process.env.MONGO_URI as string,
     RPC_URL: process.env.RPC_URL as string,
     USDC_CONTRACT_ADDRESS: process.env.USDC_CONTRACT_ADDRESS as string,
+    PREVIEW_MODE: process.env.PREVIEW_MODE === 'true',
 };

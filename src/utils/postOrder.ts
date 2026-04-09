@@ -6,6 +6,7 @@ import Logger from './logger';
 import { calculateOrderSize, getTradeMultiplier } from '../config/copyStrategy';
 
 const RETRY_LIMIT = ENV.RETRY_LIMIT;
+const PREVIEW_MODE = ENV.PREVIEW_MODE;
 const COPY_STRATEGY_CONFIG = ENV.COPY_STRATEGY_CONFIG;
 
 // Legacy parameters (for backward compatibility in SELL logic)
@@ -74,6 +75,22 @@ const postOrder = async (
     userAddress: string
 ) => {
     const UserActivity = getUserActivityModel(userAddress);
+
+    if (PREVIEW_MODE) {
+        const dirLabel = condition.toUpperCase();
+        const amt =
+            condition === 'buy'
+                ? calculateOrderSize(COPY_STRATEGY_CONFIG, trade.usdcSize, my_balance, 0).finalAmount
+                : condition === 'sell' && my_position
+                  ? my_position.size
+                  : 0;
+        Logger.info(
+            `🔍 [PREVIEW] Would ${dirLabel} ~$${amt.toFixed(2)} on ${trade.slug || trade.asset} (trader $${trade.usdcSize.toFixed(2)} @ $${trade.price.toFixed(4)})`
+        );
+        await UserActivity.updateOne({ _id: trade._id }, { bot: true });
+        return;
+    }
+
     //Merge strategy
     if (condition === 'merge') {
         Logger.info('Executing MERGE strategy...');

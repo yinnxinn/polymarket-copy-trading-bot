@@ -10,6 +10,7 @@ import Logger from '../utils/logger';
 
 const RETRY_LIMIT = ENV.RETRY_LIMIT;
 const PROXY_WALLET = ENV.PROXY_WALLET;
+const PREVIEW_MODE = ENV.PREVIEW_MODE;
 const TRADE_AGGREGATION_ENABLED = ENV.TRADE_AGGREGATION_ENABLED;
 const TRADE_AGGREGATION_WINDOW_SECONDS = ENV.TRADE_AGGREGATION_WINDOW_SECONDS;
 const TRADE_AGGREGATION_MIN_TOTAL_USD = 1.0; // Polymarket minimum
@@ -271,6 +272,9 @@ export const stopTradeExecutor = () => {
 
 const tradeExecutor = async (clobClient: ClobClient) => {
     Logger.success(`Trade executor ready for ${getUserAddresses().length} trader(s)`);
+    if (PREVIEW_MODE) {
+        Logger.warning('🔍 PREVIEW MODE: trades will be logged but NOT executed');
+    }
     if (TRADE_AGGREGATION_ENABLED) {
         Logger.info(
             `Trade aggregation enabled: ${TRADE_AGGREGATION_WINDOW_SECONDS}s window, $${TRADE_AGGREGATION_MIN_TOTAL_USD} minimum`

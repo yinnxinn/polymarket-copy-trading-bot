@@ -93,6 +93,13 @@ export const main = async () => {
         Logger.success('CLOB client ready');
 
         Logger.separator();
+        if (ENV.LEADERBOARD_ENABLED) {
+            Logger.info('Pipeline: Leaderboard → Enrich → Win-rate filter → Monitor → Copy');
+            if (ENV.PREVIEW_MODE) {
+                Logger.warning('🔍 PREVIEW MODE is ON — trades will be logged but NOT executed');
+            }
+        }
+
         Logger.info('Starting trade monitor...');
         tradeMonitor();
 
